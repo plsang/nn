@@ -171,3 +171,7 @@
 
 #include "generic/SpatialReplicationPadding.c"
 #include "THGenerateFloatTypes.h"
+
+#include "generic/SpatialUpSamplingZero.c"
+#include "THGenerateFloatTypes.h"
+
