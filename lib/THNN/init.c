@@ -175,3 +175,5 @@
 #include "generic/SpatialUpSamplingZero.c"
 #include "THGenerateFloatTypes.h"
 
+#include "generic/SpatialMIL.c"
+#include "THGenerateFloatTypes.h"    

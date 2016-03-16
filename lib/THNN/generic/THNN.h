@@ -1094,13 +1094,27 @@ TH_API void THNN_(SpatialReplicationPadding_updateGradInput)(THNNState *state,
                                                             int pad_t, int pad_b);
 
 TH_API void THNN_(SpatialUpSamplingZero_updateOutput)(THNNState *state, 
-							THTensor *input, 
-							THTensor *output, 
-							int scale_factor);
+                                        THTensor *input, 
+                                        THTensor *output, 
+                                        int scale_factor);
 
 TH_API void THNN_(SpatialUpSamplingZero_updateGradInput)(THNNState *state, 
-							THTensor *gradOutput, 
-							THTensor *gradInput,
-							int scale_factor);
+                                        THTensor *gradOutput, 
+                                        THTensor *gradInput,
+                                        int scale_factor);
+
+TH_API void THNN_(SpatialMIL_updateOutput)(
+          THNNState *state, 
+          THTensor *input, 
+          THTensor *output, 
+          int mil_type);
+
+TH_API void THNN_(SpatialMIL_updateGradInput)(
+          THNNState *state, 
+          THTensor *input, 
+          THTensor *output, 
+          THTensor *gradOutput, 
+          THTensor *gradInput, 
+          int mil_type);
 
 #endif
