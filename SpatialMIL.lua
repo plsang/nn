@@ -11,37 +11,40 @@ function SpatialMIL:__init(mil_type)
         self.mil_type = 'milnor' -- noisy OR
     end
     
-    self.mil_mode = 1
-    if self.mil_type == 'milnor' then
-        self.mil_mode = 2
-    elseif self.mil_type == 'milmaxnor' then
-        self.mil_mode = 3
-    end
-    
     self.max_indices = nil
     
     self.width = 12
     self.height = 12
     self.tmp = torch.Tensor(self.width, self.height):fill(1)
 end
+
+function SpatialMIL:getMilTypeId()
+    local mil_mode = 0
     
+    if self.mil_type == 'milmax' then
+        mil_mode = 1
+    elseif self.mil_type == 'milnor' then
+        mil_mode = 2
+    elseif self.mil_type == 'milmaxnor' then
+        mil_mode = 3
+    end
+    
+    return mil_mode
+end
+
 function SpatialMIL:updateOutput(input)
 
+    local timer = torch.Timer()
+    input.THNN.SpatialMIL_updateOutput(input:cdata(), self.output:cdata(), self:getMilTypeId())
+    print('Time: ', timer:time().real)
+    
     local batch_size = input:size(1)
     local num_channels = input:size(2)
     assert(self.width == input:size(3))
-    local timer = nil
-    
-    -- self.output:resize(batch_size, num_channels):zero()
     
     if self.mil_type == 'milmax' then
-        
-        timer = torch.Timer()
-        input.THNN.SpatialMIL_updateOutput(input:cdata(), self.output:cdata(), self.mil_mode)
-        print('Time: ', timer:time().real)
-        
+            
         local tmp = self.output:clone() 
-        
         timer = torch.Timer()
         local max_concepts, max_indices = torch.max(input:view(batch_size, num_channels, -1), 3)
         max_indices = max_indices:squeeze(3) -- remove that 3rd dim
@@ -55,10 +58,6 @@ function SpatialMIL:updateOutput(input)
         print(' norm diff = ', torch.norm(tmp - self.output))
             
     elseif self.mil_type == 'milnor' then
-        
-        timer = torch.Timer()
-        input.THNN.SpatialMIL_updateOutput(input:cdata(), self.output:cdata(), self.mil_mode)
-        print('Time: ', timer:time().real)
         
         local tmp = self.output:clone() 
         
@@ -78,10 +77,6 @@ function SpatialMIL:updateOutput(input)
         
     elseif self.mil_type == 'milmaxnor' then
         
-        timer = torch.Timer()
-        input.THNN.SpatialMIL_updateOutput(input:cdata(), self.output:cdata(), self.mil_mode)
-        print('Time: ', timer:time().real)
-        
         local tmp = self.output:clone() 
         
         timer = torch.Timer()
@@ -96,7 +91,6 @@ function SpatialMIL:updateOutput(input)
         end
         print('Time: ', timer:time().real)
         
-        
         print(' norm = ', torch.norm(self.output))
         print(' norm diff = ', torch.norm(tmp - self.output))
         
@@ -109,15 +103,20 @@ end
 
 function SpatialMIL:updateGradInput(input, gradOutput)
     
+    local timer = torch.Timer()
+    input.THNN.SpatialMIL_updateGradInput(input:cdata(), 
+        self.output:cdata(), 
+        gradOutput:cdata(), 
+        self.gradInput:cdata(), 
+        self:getMilTypeId())
+    
+    print('Time: ', timer:time().real)
+    
     local batch_size = input:size(1)
     local num_channels = input:size(2)
     assert(self.width == input:size(3))
         
     if self.mil_type == 'milmax' then
-        
-        timer = torch.Timer()
-        input.THNN.SpatialMIL_updateGradInput(input:cdata(), self.output:cdata(), gradOutput:cdata(), self.gradInput:cdata(), 1)
-        print('Time: ', timer:time().real)
         
         local tmp = self.gradInput:clone() 
         self.gradInput:zero()
@@ -134,16 +133,11 @@ function SpatialMIL:updateGradInput(input, gradOutput)
             end
         end
         print('Time: ', timer:time().real)
-        
         print(' norm = ', torch.norm(self.gradInput))
         print(' norm diff = ', torch.norm(tmp - self.gradInput))
         
         
     elseif self.mil_type == 'milnor' then
-        
-        timer = torch.Timer()
-        input.THNN.SpatialMIL_updateGradInput(input:cdata(), self.output:cdata(), gradOutput:cdata(), self.gradInput:cdata(), 2)
-        print('Time: ', timer:time().real)
         
         local tmp = self.gradInput:clone() 
         self.gradInput:zero()
@@ -164,12 +158,8 @@ function SpatialMIL:updateGradInput(input, gradOutput)
         print(' norm diff = ', torch.norm(tmp - self.gradInput))
         
     elseif self.mil_type == 'milmaxnor' then
-        timer = torch.Timer()
-        input.THNN.SpatialMIL_updateGradInput(input:cdata(), self.output:cdata(), gradOutput:cdata(), self.gradInput:cdata(), 3)
-        print('Time: ', timer:time().real)
-        
+       
         local tmp = self.gradInput:clone() 
-        self.gradInput:zero()
         
         timer = torch.Timer()
         self.gradInput:resizeAs(input):fill(1)
@@ -182,7 +172,6 @@ function SpatialMIL:updateGradInput(input, gradOutput)
             end
         end
         print('Time: ', timer:time().real)
-        
         print(' norm = ', torch.norm(self.gradInput))
         print(' norm diff = ', torch.norm(tmp - self.gradInput))
         
