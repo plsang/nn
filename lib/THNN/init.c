@@ -177,3 +177,6 @@
 
 #include "generic/SpatialMIL.c"
 #include "THGenerateFloatTypes.h"    
+
+#include "generic/MultiLabelCrossEntropyCriterion.c"
+#include "THGenerateFloatTypes.h"    

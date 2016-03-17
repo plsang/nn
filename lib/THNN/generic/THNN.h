@@ -1117,4 +1117,17 @@ TH_API void THNN_(SpatialMIL_updateGradInput)(
           THTensor *gradInput, 
           int mil_type);
 
+TH_API void THNN_(MultiLabelCrossEntropyCriterion_updateOutput)(
+          THNNState *state,
+          THTensor *input,
+          THTensor *target,
+          THTensor *output);
+
+TH_API void THNN_(MultiLabelCrossEntropyCriterion_updateGradInput)(
+          THNNState *state,
+          THTensor *input,
+          THTensor *target,
+          THTensor *gradInput,
+          real loss_weight);
+
 #endif
