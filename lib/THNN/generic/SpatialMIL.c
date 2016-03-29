@@ -6,7 +6,7 @@
 #define MILTYPE_NOR 2
 #define MILTYPE_MAXNOR 3
     
-void THNN_(SpatialMIL_updateOutput)(THNNState *state, THTensor *input, THTensor *output, int mil_type)
+void THNN_(SpatialMIL_updateOutput)(THNNState *state, THTensor *input, THTensor *output, THIndexTensor *mil_indices, int mil_type)
 {
     long batch_size;
     long num_channels;
@@ -14,9 +14,10 @@ void THNN_(SpatialMIL_updateOutput)(THNNState *state, THTensor *input, THTensor 
     long height;
     real prob, max_prob;
     int i, j, k, l;
-    long offset;
+    long offset, mil_index;
     real *input_data;
     real *output_data;
+    THIndex_t *mil_indices_data;
     
     batch_size = input->size[0];
     num_channels = input->size[1];
@@ -27,9 +28,14 @@ void THNN_(SpatialMIL_updateOutput)(THNNState *state, THTensor *input, THTensor 
     THTensor_(resize2d)(output, batch_size, num_channels);
     THArgCheck(THTensor_(isContiguous)(output), 2, "Output must be contiguous");
     
+    THIndexTensor_(resize2d)(mil_indices, batch_size, num_channels);
+    THArgCheck(THIndexTensor_(isContiguous)(mil_indices), 2, "mil_indices must be contiguous");
+    
     input_data = THTensor_(data)(input);
     output_data = THTensor_(data)(output);
     THTensor_(zero)(output);
+    mil_indices_data = THIndexTensor_(data)(mil_indices);
+    THIndexTensor_(zero)(mil_indices);
     
     switch(mil_type)
     {
@@ -38,13 +44,18 @@ void THNN_(SpatialMIL_updateOutput)(THNNState *state, THTensor *input, THTensor 
             for(i = 0; i < batch_size; i++){
                 for(j = 0; j < num_channels; j++){
                     prob = -THInf;
+                    mil_index = -1;
                     for(k=0; k<width; k++){
                         for(l=0; l<height; l++){
-                            prob = THMax(prob, input_data[offset]);
+                            if(input_data[offset] > prob){
+                                prob = input_data[offset];
+                                mil_index = k*height+l;
+                            }
                             offset++;
                         }
                     }
                     output_data[i*num_channels + j] = prob;
+                    mil_indices_data[i*num_channels + j] = mil_index;
                 }
             }
             break;
@@ -54,13 +65,20 @@ void THNN_(SpatialMIL_updateOutput)(THNNState *state, THTensor *input, THTensor 
             for(i = 0; i < batch_size; i++){
                 for(j = 0; j < num_channels; j++){
                     prob = 1.;
+                    max_prob = -THInf;
+                    mil_index = -1;
                     for(k=0; k<width; k++){
                         for(l=0; l<height; l++){
                             prob = prob*(1. - input_data[offset]);
+                            if(input_data[offset] > max_prob){
+                                max_prob = input_data[offset];
+                                mil_index = k*height+l;
+                            }
                             offset++;
                         }
                     }
                     output_data[i*num_channels + j] = 1. - prob;
+                    mil_indices_data[i*num_channels + j] = mil_index;
                 }
             }
             break;
@@ -71,14 +89,19 @@ void THNN_(SpatialMIL_updateOutput)(THNNState *state, THTensor *input, THTensor 
                 for(j = 0; j < num_channels; j++){
                     prob = 1.;
                     max_prob = -THInf;
+                    mil_index = -1;
                     for(k=0; k<width; k++){
                         for(l=0; l<height; l++){
                             prob = prob*(1. - input_data[offset]);
-                            max_prob = THMax(max_prob, input_data[offset]);
+                            if(input_data[offset] > max_prob){
+                                max_prob = input_data[offset];
+                                mil_index = k*height+l;
+                            }
                             offset++;
                         }
                     }
                     output_data[i*num_channels + j] = THMax(1. - prob, max_prob);
+                    mil_indices_data[i*num_channels + j] = mil_index;
                 }
             }
             break;

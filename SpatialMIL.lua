@@ -10,6 +10,8 @@ function SpatialMIL:__init(mil_type)
     else
         self.mil_type = 'milnor' -- noisy OR
     end
+    
+    self.mil_indices = torch.LongTensor()
 end
 
 function SpatialMIL:getMilTypeId()
@@ -28,7 +30,7 @@ end
 
 function SpatialMIL:updateOutput(input)
 
-    input.THNN.SpatialMIL_updateOutput(input:cdata(), self.output:cdata(), self:getMilTypeId())
+    input.THNN.SpatialMIL_updateOutput(input:cdata(), self.output:cdata(), self.mil_indices:cdata(), self:getMilTypeId())
 
     return self.output
 end
