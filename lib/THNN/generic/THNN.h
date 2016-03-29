@@ -1015,7 +1015,8 @@ TH_API void THNN_(SpatialUpSamplingZero_updateGradInput)(THNNState *state,
 TH_API void THNN_(SpatialMIL_updateOutput)(
           THNNState *state, 
           THTensor *input, 
-          THTensor *output, 
+          THTensor *output,
+          THIndexTensor *mil_indices,
           int mil_type);
 
 TH_API void THNN_(SpatialMIL_updateGradInput)(
