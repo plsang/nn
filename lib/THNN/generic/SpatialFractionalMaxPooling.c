@@ -79,7 +79,7 @@ static void THNN_(SpatialFractionalMaxPooling_updateOutput_frame)(
 
         outputForPlane[h * outputW + w] = maxVal;
         /* +1 to lua index */
-        indicesForPlane[h * outputW + w] = (real) maxIndex + 1;
+        indicesForPlane[h * outputW + w] = (real) maxIndex + TH_INDEX_BASE;
       }
     }
 
@@ -96,15 +96,15 @@ void THNN_(SpatialFractionalMaxPooling_updateOutput)(
     int poolSizeW, int poolSizeH,
     THTensor *indices,
     THTensor *randomSamples) {
-  
+
   long numBatch = 1;
   int planeDim = 0;
   int heightDim = 1;
   int widthDim = 2;
 
   long numInputDims = THTensor_(nDimension)(input);
-  THArgCheck(numInputDims == 3 || numInputDims == 4, 2,
-             "3D or 4D (batch mode) tensor expected");
+  THNN_ARGCHECK(numInputDims == 3 || numInputDims == 4, 2, input,
+		"3D or 4D (batch mode) tensor expected for input, but got: %s");
 
   if (numInputDims == 4) {
     numBatch = THTensor_(size)(input, 0);
@@ -119,9 +119,11 @@ void THNN_(SpatialFractionalMaxPooling_updateOutput)(
   long inputW = THTensor_(size)(input, widthDim);
 
   THArgCheck(outputH + poolSizeH - 1 < inputH, 7,
-             "poolSizeH too large relative to input height");
+             "poolSizeH (%d) too large relative to input height (%d)",
+	     poolSizeH, inputH);
   THArgCheck(outputW + poolSizeW - 1 < inputW, 6,
-             "poolSizeW too large relative to input width");
+             "poolSizeW (%d) too large relative to input width (%d)",
+	     poolSizeW, inputW);
 
   /* get contiguous input */
   input = THTensor_(newContiguous)(input);
@@ -177,7 +179,7 @@ static void THNN_(SpatialFractionalMaxPooling_updateGradInput_frame)(
     for (h = 0; h < outputH; ++h) {
       for (w = 0; w < outputW; ++w) {
         long outputIndex = h * outputW + w;
-        long index = indicesForPlane[outputIndex] - 1;
+        long index = indicesForPlane[outputIndex] - TH_INDEX_BASE;
         THAssert(index >= 0 && index < inputW * inputH);
 
         gradInputForPlane[index] += gradOutputForPlane[outputIndex];

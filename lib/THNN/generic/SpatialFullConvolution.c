@@ -73,16 +73,21 @@ void THNN_(SpatialFullConvolution_updateOutput)(
   int nInputPlane = THTensor_(size)(weight,0);
   int nOutputPlane = THTensor_(size)(weight,1);
 
-  THArgCheck(input->nDimension == 3 || input->nDimension == 4, 2, "3D or 4D (batch mode) tensor is expected");
+  THNN_ARGCHECK(input->nDimension == 3 || input->nDimension == 4, 2, input,
+		"3D or 4D (batch mode) tensor expected for input, but got: %s")
 
   int batch = 1;
   if (input->nDimension == 3) {
-    THArgCheck(input->size[0] == nInputPlane, 2, "input channels and nInputPlane dont match");
+    THArgCheck(input->size[0] == nInputPlane, 2,
+	       "input channels (%d) and nInputPlane (%d) dont match",
+	       input->size[0], nInputPlane);
     // Force batch
     batch = 0;
     THTensor_(resize4d)(input, 1, input->size[0], input->size[1], input->size[2]);
   } else {
-    THArgCheck(input->size[1] == nInputPlane, 2, "input channels and nInputPlane dont match");
+    THArgCheck(input->size[1] == nInputPlane, 2,
+	       "input channels (%d) and nInputPlane (%d) dont match",
+	       input->size[1], nInputPlane);
   }
 
   long inputWidth   = input->size[3];
@@ -98,6 +103,7 @@ void THNN_(SpatialFullConvolution_updateOutput)(
 
   // Resize temporary columns
   THTensor_(resize2d)(columns, nOutputPlane*kW*kH, inputHeight*inputWidth);
+  THTensor_(zero)(columns);
 
   // Define a buffer of ones, for bias accumulation
   // Note: this buffer can be shared with other modules, it only ever gets increased,
@@ -152,16 +158,17 @@ void THNN_(SpatialFullConvolution_updateOutput)(
     long k_ = 1;
 
     // Do GEMM (note: this is a bit confusing because gemm assumes column-major matrices)
-    THBlas_(gemm)(
-        't', 'n',
-        n_, m_, k_,
-        1,
-        THTensor_(data)(ones), k_,
-        THTensor_(data)(bias), k_,
-        1,
-        THTensor_(data)(output_n), n_
-    );
-
+    if (bias) {
+      THBlas_(gemm)(
+          't', 'n',
+          n_, m_, k_,
+          1,
+          THTensor_(data)(ones), k_,
+          THTensor_(data)(bias), k_,
+          1,
+          THTensor_(data)(output_n), n_
+      );
+    }
   }
 
   // Free
@@ -187,10 +194,12 @@ void THNN_(SpatialFullConvolution_updateGradInput)(
     int padW, int padH,
     int adjW, int adjH)
 {
+  // TODO: check gradOutput shape
   int nInputPlane = THTensor_(size)(weight,0);
   int nOutputPlane = THTensor_(size)(weight,1);
 
-  THArgCheck(input->nDimension == 3 || input->nDimension == 4, 2, "3D or 4D (batch mode) tensor is expected");
+  THNN_ARGCHECK(input->nDimension == 3 || input->nDimension == 4, 2, input,
+		"3D or 4D (batch mode) tensor expected for input, but got: %s");
 
   int batch = 1;
   if (input->nDimension == 3) {
@@ -210,6 +219,7 @@ void THNN_(SpatialFullConvolution_updateGradInput)(
 
   // Resize output
   THTensor_(resize4d)(gradInput, batchSize, nInputPlane, inputHeight, inputWidth);
+  THTensor_(zero)(gradInput);
 
   // Resize temporary columns
   THTensor_(resize2d)(gradColumns, nOutputPlane*kW*kH, inputHeight*inputWidth);
@@ -283,7 +293,8 @@ void THNN_(SpatialFullConvolution_accGradParameters)(
   int nInputPlane = THTensor_(size)(gradWeight,0);
   int nOutputPlane = THTensor_(size)(gradWeight,1);
 
-  THArgCheck(input->nDimension == 3 || input->nDimension == 4, 2, "3D or 4D (batch mode) tensor is expected");
+  THNN_ARGCHECK(input->nDimension == 3 || input->nDimension == 4, 2, input,
+		"3D or 4D (batch mode) tensor expected for input, but got: %s");
 
   int batch = 1;
   if (input->nDimension == 3) {
@@ -355,15 +366,17 @@ void THNN_(SpatialFullConvolution_accGradParameters)(
     long k_ = outputHeight * outputWidth;
 
     // Do GEMV (note: this is a bit confusing because gemv assumes column-major matrices)
-    THBlas_(gemv)(
-        't',
-        k_, m_,
-        scale,
-        THTensor_(data)(gradOutput_n), k_,
-        THTensor_(data)(ones), 1,
-        1,
-        THTensor_(data)(gradBias), 1
-    );
+    if (gradBias) {
+      THBlas_(gemv)(
+          't',
+          k_, m_,
+          scale,
+          THTensor_(data)(gradOutput_n), k_,
+          THTensor_(data)(ones), 1,
+          1,
+          THTensor_(data)(gradBias), 1
+      );
+    }
   }
 
   // Free

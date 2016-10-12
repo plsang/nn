@@ -64,7 +64,7 @@ void THNN_(SoftMax_updateOutput)(
     sum = 0;
     for (d = 0; d < dim; d++)
     {
-      real z = THExpMinusApprox(inputMax - input_ptr[d*stride]);
+      real z = exp(input_ptr[d*stride] - inputMax);
       output_ptr[d*stride] = z;
       sum += z;
     }
@@ -85,6 +85,7 @@ void THNN_(SoftMax_updateGradInput)(
           THTensor *gradInput,
           THTensor *output)
 {
+  THNN_CHECK_SHAPE(input, gradOutput);  
   real *gradInput_data, *gradOutput_data, *output_data;
   long nframe = 0, dim = 0, stride = 0;
   long t;

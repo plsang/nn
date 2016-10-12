@@ -96,7 +96,7 @@ criterion.sizeAverage = false
 criterion = nn.ClassNLLCriterion([weights])
 ```
 
-The negative log likelihood criterion. It is useful to train a classication problem with `n` classes.
+The negative log likelihood criterion. It is useful to train a classification problem with `n` classes.
 If provided, the optional argument `weights` should be a 1D `Tensor` assigning weight to each of the classes.
 This is particularly useful when you have an unbalanced training set.
 
@@ -143,7 +143,7 @@ criterion = nn.CrossEntropyCriterion([weights])
 
 This criterion combines [`LogSoftMax`](#nn.LogSoftMax) and [`ClassNLLCriterion`](#nn.ClassNLLCriterion) in one single class.
 
-It is useful to train a classication problem with `n` classes.
+It is useful to train a classification problem with `n` classes.
 If provided, the optional argument `weights` should be a 1D `Tensor` assigning weight to each of the classes. This is particularly useful when you have an unbalanced training set.
 
 The `input` given through a `forward()` is expected to contain scores for each class: `input` has to be a 1D `Tensor` of size `n`.
@@ -332,7 +332,7 @@ By default, the losses are averaged over observations for each minibatch. Howeve
 criterion = nn.SoftMarginCriterion()
 ```
 
-Creates a criterion that optimizes a two-class classification logisitic loss between input `x` (a `Tensor` of dimension `1`) and output `y` (which is a tensor containing either `1`s or `-1`s).
+Creates a criterion that optimizes a two-class classification logistic loss between input `x` (a `Tensor` of dimension `1`) and output `y` (which is a tensor containing either `1`s or `-1`s).
 
 ```lua
 loss(x, y) = sum_i (log(1 + exp(-y[i]*x[i]))) / x:nElement()
@@ -403,7 +403,7 @@ criterion = nn.MultiMarginCriterion(p, [weights], [margin])
 Creates a criterion that optimizes a multi-class classification hinge loss (margin-based loss) between input `x`  (a `Tensor` of dimension 1) and output `y` (which is a target class index, `1` <= `y` <= `x:size(1)`):
 
 ```lua
-loss(x, y) = sum_i(max(0, (margin - x[y] - x[i]))^p) / x:size(1)
+loss(x, y) = sum_i(max(0, (margin - x[y] + x[i]))^p) / x:size(1)
 ```
 
 where `i == 1` to `x:size(1)` and `i ~= y`.

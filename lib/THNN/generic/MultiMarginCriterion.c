@@ -2,6 +2,7 @@
 #define TH_GENERIC_FILE "generic/MultiMarginCriterion.c"
 #else
 
+// TODO: improve error messages
 void THNN_(MultiMarginCriterion_updateOutput)(
           THNNState *state,
           THTensor *input,
@@ -17,7 +18,8 @@ void THNN_(MultiMarginCriterion_updateOutput)(
   long t, d;
   real sum;
 
-  THArgCheck((input->nDimension == 1) || (input->nDimension == 2), 2, "vector or matrix expected");
+  THArgCheck((input->nDimension == 1) || (input->nDimension == 2), 2,
+	     "vector or matrix expected");
 
   if (input->nDimension == 1)
   {
@@ -28,13 +30,15 @@ void THNN_(MultiMarginCriterion_updateOutput)(
   {
     nframe = input->size[0];
     dim = input->size[1];
-    THArgCheck((target->nDimension == 1) && (target->size[0] == nframe), 3, "inconsistent target size");
+    THArgCheck((target->nDimension == 1) && (target->size[0] == nframe), 3,
+	       "inconsistent target size");
   }
 
   for (t = 0; t < nframe; t++)
   {
     real idx = THTensor_(get1d)(target, t);
-    THArgCheck((idx >= 1) && (idx <= dim), 3, "target out of range");
+    THArgCheck((idx >= TH_INDEX_BASE) && (idx < dim + TH_INDEX_BASE), 3,
+	       "target out of range");
   }
 
   input = THTensor_(newContiguous)(input);
@@ -47,7 +51,7 @@ void THNN_(MultiMarginCriterion_updateOutput)(
   sum = 0;
   for (t = 0; t < nframe; t++)
   {
-    long target_idx = (long)(target_data[t]-1);
+    long target_idx = (long)(target_data[t] - TH_INDEX_BASE);
     real input_target = input_data[target_idx];
     for (d = 0; d < dim; d++)
     {
@@ -95,7 +99,8 @@ void THNN_(MultiMarginCriterion_updateGradInput)(
   long t, d;
   real g;
 
-  THArgCheck((input->nDimension == 1) || (input->nDimension == 2), 2, "vector or matrix expected");
+  THArgCheck((input->nDimension == 1) || (input->nDimension == 2), 2,
+	     "vector or matrix expected");
 
   if (input->nDimension == 1)
   {
@@ -106,7 +111,8 @@ void THNN_(MultiMarginCriterion_updateGradInput)(
   {
     nframe = input->size[0];
     dim = input->size[1];
-    THArgCheck((target->nDimension == 1) && (target->size[0] == nframe), 3, "inconsistent target size");
+    THArgCheck((target->nDimension == 1) && (target->size[0] == nframe), 3,
+	       "inconsistent target size");
   }
 
   g = (sizeAverage ? 1./((real)(nframe*dim)) : 1./((real)dim));
@@ -124,7 +130,7 @@ void THNN_(MultiMarginCriterion_updateGradInput)(
 
   for (t = 0; t < nframe; t++)
   {
-    long target_idx = (long)(target_data[t])-1;
+    long target_idx = (long)(target_data[t]) - TH_INDEX_BASE;
     real input_target = input_data[target_idx];
     real gradInput_target = 0;
     for (d = 0; d < dim; d++)
