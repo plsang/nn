@@ -7,7 +7,7 @@ local jac
 local sjac
 
 local precision = 1e-5
-local expprecision = 1e-4
+local expprecision = 1.1e-4
 
 local nntest = torch.TestSuite()
 
@@ -119,6 +119,231 @@ function nntest.Bottle()
    local gradOutput2 = module2:backward(input, grad):clone()
    mytester:eq(output1, output2, 0.0001, 'Bottle output not the same as Module')
    mytester:eq(gradOutput1, gradOutput2, 0.0001, 'Bottle gradOutput not the same as Module')
+end
+
+function nntest.CAdd()
+   local function testBackwardPass(module, input, params, dparams)
+      local err = jac.testJacobian(module,input)
+      mytester:assertlt(err,precision, "error computing gradiens w.r.t. inputs")
+
+      err = jac.testJacobianParameters(module, input, params, dparams)
+      mytester:assertlt(err,precision, "error computing gradients w.r.t params")
+
+      err = jac.testJacobianUpdateParameters(module, input, module.bias)
+      mytester:assertlt(err,precision, "error in update using gradients w.r.t parameters")
+
+      --Test all of the various update methods
+      for test, err in pairs(jac.testAllUpdate(module, input, "bias", "gradBias")) do
+         mytester:assertlt(err, precision, string.format("error on bias [%s]", test))
+      end
+   end
+
+   local function testModuleIO(module, input)
+      local fwdErr,bkwdErr = jac.testIO(module,input)
+      mytester:asserteq(fwdErr, 0, torch.typename(module) .. " - i/o forward err ")
+      mytester:asserteq(bkwdErr, 0, torch.typename(module) .. " - i/o backward err ")
+   end
+
+   local function testCAddWithNonBatchedInput()
+      local channels = math.random(3,5)
+      local width = math.random(3,5)
+      local height = math.random(3,5)
+
+      local input = torch.Tensor(channels, height, width):zero()
+
+      --Per channel bias
+      local module = nn.CAdd(channels, 1, 1)
+      local params, gradParams = module:getParameters()
+
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      local output = module:forward(input)
+      mytester:assert(output:isSameSizeAs(input))
+
+      for i = 1, module.bias:view(-1):size(1) do
+         local bias = module.bias:view(-1)[i]
+         local result = output[i]:view(-1)
+         local expectedResult = torch.Tensor({bias}):expandAs(result)
+         mytester:assertTensorEq(result, expectedResult, precision)
+      end
+
+      --Per row bias
+      module = nn.CAdd(1, height, 1)
+      params, gradParams = module:getParameters()
+
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      output = module:forward(input)
+      mytester:assert(output:isSameSizeAs(input))
+
+      for i = 1, module.bias:view(-1):size(1) do
+         local bias = module.bias:view(-1)[i]
+         local result = output[{{}, {i}, {}}]:contiguous():view(-1)
+         local expectedResult = torch.Tensor({bias}):expandAs(result)
+         mytester:assertTensorEq(result, expectedResult, precision)
+      end
+
+      --Per column bias
+      module = nn.CAdd(1, 1, width)
+      params, gradParams = module:getParameters()
+
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      output = module:forward(input)
+      mytester:assert(output:isSameSizeAs(input))
+
+      for i = 1, module.bias:view(-1):size(1) do
+         local bias = module.bias:view(-1)[i]
+         local result = output[{{}, {}, {i}}]:contiguous():view(-1)
+         local expectedResult = torch.Tensor({bias}):expandAs(result)
+         mytester:assertTensorEq(result, expectedResult, precision)
+      end
+
+      --Per input component bias
+      module = nn.CAdd(channels, height, width)
+      params, gradParams = module:getParameters()
+
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      output = module:forward(input)
+
+      mytester:assert(output:isSameSizeAs(input))
+      mytester:assert(module.bias:isSameSizeAs(input))
+      mytester:assertTensorEq(module.bias, output, precision)
+
+      testModuleIO(module, input)
+   end
+
+   local function testCAddWithBatchedInput()
+      local batchSize = math.random(3,5)
+      local channels = math.random(3,5)
+      local width = math.random(3,5)
+      local height = math.random(3,5)
+
+      local input = torch.Tensor(batchSize, channels, height, width):zero()
+      local module = nn.CAdd(batchSize, channels, height, width)
+
+      --Per batch bias
+      local module = nn.CAdd(batchSize, 1, 1, 1)
+      local params, gradParams = module:getParameters()
+
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      local output = module:forward(input)
+      mytester:assert(output:isSameSizeAs(input))
+
+      for i = 1, module.bias:view(-1):size(1) do
+         local bias = module.bias:view(-1)[i]
+         local result = output[i]:view(-1)
+         local expectedResult = torch.Tensor({bias}):expandAs(result)
+         mytester:assertTensorEq(result, expectedResult, precision)
+      end
+
+      --Per channel bias
+      module = nn.CAdd(1, channels, 1, 1)
+      params, gradParams = module:getParameters()
+
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      output = module:forward(input)
+      mytester:assert(output:isSameSizeAs(input))
+
+      for i = 1, module.bias:view(-1):size(1) do
+         local bias = module.bias:view(-1)[i]
+         local result = output[{{}, {i}, {}, {}}]:contiguous():view(-1)
+         local expectedResult = torch.Tensor({bias}):expandAs(result)
+         mytester:assertTensorEq(result, expectedResult, precision)
+      end
+
+      --Per row bias
+      module = nn.CAdd(1, 1, height, 1)
+      params, gradParams = module:getParameters()
+
+       testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      output = module:forward(input)
+      mytester:assert(output:isSameSizeAs(input))
+
+      for i = 1, module.bias:view(-1):size(1) do
+         local bias = module.bias:view(-1)[i]
+         local result = output[{{}, {}, {i}, {}}]:contiguous():view(-1)
+         local expectedResult = torch.Tensor({bias}):expandAs(result)
+         mytester:assertTensorEq(result, expectedResult, precision)
+      end
+
+      --Per column bias
+      module = nn.CAdd(1, 1, 1, width)
+      params, gradParams = module:getParameters()
+
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      output = module:forward(input)
+      mytester:assert(output:isSameSizeAs(input))
+
+      for i = 1, module.bias:view(-1):size(1) do
+         local bias = module.bias:view(-1)[i]
+         local result = output[{{}, {}, {}, {i}}]:contiguous():view(-1)
+         local expectedResult = torch.Tensor({bias}):expandAs(result)
+         mytester:assertTensorEq(result, expectedResult, precision)
+      end
+
+      --Per input component bias
+      module = nn.CAdd(batchSize, channels, height, width)
+      params, gradParams = module:getParameters()
+
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      output = module:forward(input)
+
+      mytester:assert(output:isSameSizeAs(input))
+      mytester:assert(module.bias:isSameSizeAs(input))
+      mytester:assertTensorEq(module.bias, output, precision)
+
+      testModuleIO(module, input)
+   end
+
+
+   function testCAddWithLessDimsThanInput()
+      local input = torch.rand(4,5)
+      local module = nn.CAdd(5)
+      params, gradParams = module:getParameters()
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      local output = module:forward(input)
+      local expandedBias = module.bias:view(1,5):expand(4,5):clone()
+      mytester:assert(output:isSameSizeAs(input))
+      mytester:assertTensorEq(expandedBias, output, precision)
+
+      testModuleIO(module, input)
+
+      input = torch.rand(4,5,6)
+      module = nn.CAdd(5,6)
+      params, gradParams = module:getParameters()
+      testBackwardPass(module, input, params, gradParams)
+
+      input:zero()
+      local output = module:forward(input)
+      expandedBias = module.bias:view(1,5,6):expand(4,5,6):clone()
+      mytester:assert(output:isSameSizeAs(input))
+      mytester:assertTensorEq(expandedBias, output, precision)
+
+      testModuleIO(module, input)
+   end
+
+
+   testCAddWithNonBatchedInput()
+   testCAddWithBatchedInput()
+   testCAddWithLessDimsThanInput()
 end
 
 function nntest.CMul()
@@ -1719,6 +1944,22 @@ function nntest.LogSoftmax()
 
 end
 
+function nntest.SpatialLogSoftMax()
+   local ini = math.random(3,5)
+   local inj = math.random(3,5)
+   local ink = math.random(3,5)
+   local inl = math.random(3,5)
+   local input = torch.Tensor(inl, ink, inj, ini):zero()
+   local module = nn.SpatialLogSoftMax()
+
+   local err = jac.testJacobian(module,input)
+   mytester:assertlt(err,expprecision, 'error on state ')
+
+   local ferr,berr = jac.testIO(module,input)
+   mytester:asserteq(ferr, 0, torch.typename(module) .. ' - i/o forward err ')
+   mytester:asserteq(berr, 0, torch.typename(module) .. ' - i/o backward err ')
+end
+
 -- function nntest.TemporalLogSoftmax()
 --    local ini = math.random(10,20)
 --    local inj = math.random(10,20)
@@ -2272,10 +2513,6 @@ function nntest.SpatialConvolution()
       module = nn.SpatialConvolution(from, to, ki, kj, si, sj)
       input = torch.Tensor(batch,from,inj,ini):zero()
 
-      --    print(from, to, ki, kj, si, sj, batch, ini, inj)
-      --    print(module.weight:size())
-      --    print(module.gradWeight:size())
-
       local err = jac.testJacobian(module, input)
       mytester:assertlt(err, precision, 'batch error on state ')
 
@@ -2499,11 +2736,7 @@ function nntest.SpatialConvolutionLocal()
    ini = (outi-1)*si+ki
    inj = (outj-1)*sj+kj
    module = nn.SpatialConvolutionLocal(from, to, ini, inj, ki, kj, si, sj)
-   input = torch.Tensor(batch,from,inj,ini):zero()
-
---    print(from, to, ki, kj, si, sj, batch, ini, inj)
---    print(module.weight:size())
---    print(module.gradWeight:size())
+   input = torch.Tensor(batch, from, inj, ini):zero()
 
    local err = jac.testJacobian(module, input)
    mytester:assertlt(err, precision, 'batch error on state ')
@@ -2545,14 +2778,13 @@ function nntest.SpatialConvolutionLocal()
 
    -- check against nn.SpatialConvolution
    local conv = nn.SpatialConvolution(from, to, ki, kj, si, sj)
-   torch.repeatTensor(module.bias, conv.bias:view(to, 1, 1), 1, outi, outj)
+   torch.repeatTensor(module.bias, conv.bias:view(to, 1, 1), 1, outj, outi)
    torch.repeatTensor(module.weight, conv.weight:view(1, 1, from, to, ki, kj), outi, outj, 1, 1, 1, 1)
    local input = torch.rand(batch, from, inj, ini)
    local output = module:forward(input)
    local outputConv = conv:forward(input)
    local err = torch.dist(output, outputConv)
    mytester:assertlt(err, precision, 'error checking against nn.SpatialConvolution')
-
 end
 
 function nntest.SpatialFullConvolution()
@@ -6596,6 +6828,167 @@ function nntest.VolumetricReplicationPadding()
    end
 end
 
+function nntest.PixelShuffle()
+   -- Checks whether a given tensor has the specified size
+   local function tensorHasSize(tensor, size)
+      local tensorSize = tensor:size()
+
+      if tensorSize:size() ~= #size then
+         return false
+      end
+      for i,v in ipairs(size) do
+         if tensorSize[i] ~= size[i] then
+            return false
+         end
+      end
+      return true
+   end
+
+   --Verifies that the output is the input re-shuffled as per Eq 4. in
+   -- "Real-Time Single Image and Video Super-Resolution Using an Efficient
+   -- Sub-Pixel Convolutional Neural Network", Shi et al.
+   -- @param - the input, low-resolution image of shape [1, c, h , w]
+   -- @param - the output, super resolved image of shape [1, c, h ,w]
+   -- @param - upscale factor of the super resolutin
+   -- @returns true if output complies with Eq 4.
+   local function verifyPixelShuffle(_input, _output, upscaleFactor)
+      local input = _input
+      local output = _output
+
+      if input:nDimension() == 3 then
+         input = input:view(1, input:size(1), input:size(2), input:size(3))
+         output = output:view(1, output:size(1), output:size(2), output:size(3))
+      end
+
+      for c = 1, output:size(2)  do
+         for h = 1, output:size(3) do
+            for w = 1, output:size(4) do
+               local heightIdx = torch.floor((h - 1)/upscaleFactor) + 1
+               local widthIdx = torch.floor((w - 1)/upscaleFactor) + 1
+                  --c does not need to be (c - 1) as it starts at 1 not zero
+                  local channelIdx = upscaleFactor * ((h-1) % upscaleFactor) + ((w-1) % upscaleFactor) + 1 + (c-1)*upscaleFactor*upscaleFactor
+
+                  mytester:assertTensorEq(output[{{}, {c}, {h}, {w}}], input[{{}, {channelIdx}, {heightIdx}, {widthIdx}}],
+                                        string.format("output at location (%d, %d, %d) is incorrect", c, h, w))
+            end
+         end
+      end
+      return true
+   end
+
+   -- Checks the nn.PixelShuffle layer's forward pass. It checks that is
+   -- re-arranges input pixels correctly according to Eq. 4 of
+   -- "Real-Time Single Image and Video Super-Resolution Using an Efficient
+   -- Sub-Pixel Convolutional Neural Network", Shi et al.
+   -- This function tests for multip batch sizes, multiple channels and multiple input dimensions (square)
+   -- It also tests for normal tensors (un-batched)
+   function testPixelShuffleUpdateOutput()
+      --Test with batched input
+      for h = 1, 3 do
+         local batchSize = torch.round(torch.uniform(1, 3))
+         for i = 1, 3 do
+            local upscaleFactor = torch.round(torch.uniform(2,5))
+            local pixelShuffle = nn.PixelShuffle(upscaleFactor)
+            for j = 1, 3 do
+               local channels = torch.round(torch.uniform(1, 4))
+               for k = 1, 3 do
+
+                     local inputDim = torch.round(torch.uniform(5, 10))
+                     local input = torch.Tensor(batchSize, channels * upscaleFactor * upscaleFactor, inputDim, inputDim)
+                     input:uniform()
+
+                     local output = pixelShuffle:forward(input)
+                     local expectedOutputDim = inputDim * upscaleFactor
+                     mytester:assert(tensorHasSize(output, {batchSize, channels, expectedOutputDim, expectedOutputDim}),
+                     string.format("Output tensor should have size (%d, %d, %d, %d) not %s", batchSize, channels, expectedOutputDim, expectedOutputDim, tostring(output:size())))
+                     verifyPixelShuffle(input, output, upscaleFactor)
+               end
+            end
+         end
+      end
+
+      --Test with non-batched input
+      local inputDim = torch.round(torch.uniform(5, 10))
+      local channels = torch.round(torch.uniform(1, 4))
+      local upscaleFactor = torch.round(torch.uniform(2,5))
+
+      local input = torch.Tensor(channels * upscaleFactor * upscaleFactor, inputDim, inputDim)
+      input:uniform()
+
+      local pixelShuffle = nn.PixelShuffle(upscaleFactor)
+      local output = pixelShuffle:forward(input)
+      local expectedOutputDim = inputDim * upscaleFactor
+      mytester:assert(tensorHasSize(output, {channels, expectedOutputDim, expectedOutputDim}),
+      string.format("Output tensor should have size (%d, %d, %d) not %s", channels, expectedOutputDim, expectedOutputDim, tostring(output:size())))
+
+      verifyPixelShuffle(input, output, upscaleFactor)
+   end
+
+   -- Checks the nn.PixelShuffle layer's backward pass. It checks that is
+   -- essentially performs the inverse of Eq 4. in
+   -- "Real-Time Single Image and Video Super-Resolution Using an Efficient
+   -- Sub-Pixel Convolutional Neural Network", Shi et al.
+   -- This function tests for multip batch sizes, multiple channels and multiple input dimensions (square)
+   -- It also tests for normal tensors (un-batched)
+   function testPixelShuffleUpdateGradInput()
+      --Test with batched input
+      for h = 1, 3 do
+         local batchSize = torch.round(torch.uniform(1, 3))
+         for i = 1, 3 do
+            local upscaleFactor = torch.round(torch.uniform(2,5))
+            local pixelShuffle = nn.PixelShuffle(upscaleFactor)
+               for j = 1, 3 do
+                  local channels = torch.round(torch.uniform(1, 4))
+                  for k = 1, 3 do
+                     local inputDim = torch.round(torch.uniform(5, 10))
+                     local input = torch.Tensor(batchSize, channels * upscaleFactor * upscaleFactor, inputDim, inputDim)
+
+                     input:uniform()
+
+                     local output = pixelShuffle:forward(input)
+                     --here we treat output as the same as gradOutput as they have the same shape
+                     local reconstructedInput = pixelShuffle:backward(input, output)
+                     mytester:assertTensorEq(reconstructedInput, input, 0)
+                  end
+            end
+         end
+      end
+
+      --Test with non-batched input
+      local inputDim = torch.round(torch.uniform(5, 10))
+      local channels = torch.round(torch.uniform(1, 4))
+      local upscaleFactor = torch.round(torch.uniform(2,5))
+      local input = torch.Tensor(channels * upscaleFactor * upscaleFactor, inputDim, inputDim)
+      input:uniform()
+
+      local pixelShuffle = nn.PixelShuffle(upscaleFactor)
+      local output = pixelShuffle:forward(input)
+      --here we treat output as the same as gradOutput as they have the same shape
+      local reconstructedInput = pixelShuffle:backward(input, output)
+      mytester:assertTensorEq(reconstructedInput, input, 0)
+
+      local err = jac.testJacobian(pixelShuffle, input)
+      mytester:assertlt(err,precision, "error computing gradiens w.r.t. inputs")
+   end
+
+   function testModuleIO()
+      --Test with non-batched input
+      local inputDim = torch.round(torch.uniform(5, 10))
+      local channels = torch.round(torch.uniform(1, 4))
+      local upscaleFactor = torch.round(torch.uniform(2,5))
+      local input = torch.Tensor(channels * upscaleFactor * upscaleFactor, inputDim, inputDim):uniform()
+      local pixelShuffle = nn.PixelShuffle(upscaleFactor)
+
+      local fwdErr,bkwdErr = jac.testIO(pixelShuffle,input)
+      mytester:asserteq(fwdErr, 0, torch.typename(pixelShuffle) .. " - i/o forward err ")
+      mytester:asserteq(bkwdErr, 0, torch.typename(pixelShuffle) .. " - i/o backward err ")
+   end
+
+   testPixelShuffleUpdateOutput()
+   testPixelShuffleUpdateGradInput()
+   testModuleIO()
+end
+
 function nntest.Typecast()
   local function make_network()
     local seq = nn.Sequential()
@@ -6838,4 +7231,10 @@ function nn.test(tests, seed)
    mytester:run(tests)
    torch.setnumthreads(nThreads)
    return mytester
+end
+
+function nn.testTHNN(tests, seed)
+   require 'test.LinearTHNN'
+   nn.Linear = nn.LinearTHNN
+   return nn.test(tests,seed)
 end

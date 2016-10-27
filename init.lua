@@ -44,6 +44,7 @@ require('nn.Mean')
 require('nn.CMul')
 require('nn.Mul')
 require('nn.MulConstant')
+require('nn.CAdd')
 require('nn.Add')
 require('nn.AddConstant')
 require('nn.Dropout')
@@ -90,6 +91,7 @@ require('nn.ReLU6')
 require('nn.PReLU')
 require('nn.LeakyReLU')
 require('nn.SpatialSoftMax')
+require('nn.SpatialLogSoftMax')
 require('nn.RReLU')
 require('nn.ELU')
 
@@ -173,6 +175,8 @@ require('nn.BCECriterion')
 require('nn.CrossEntropyCriterion')
 require('nn.ParallelCriterion')
 
+require('nn.PixelShuffle')
+
 require('nn.StochasticGradient')
 
 require('nn.MM')
@@ -182,5 +186,6 @@ require('nn.Jacobian')
 require('nn.SparseJacobian')
 require('nn.hessian')
 require('nn.test')
+
 
 return nn

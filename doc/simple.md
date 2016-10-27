@@ -8,6 +8,7 @@ Simple Modules are used for various tasks like adapting Tensor methods and provi
     * [Bilinear](#nn.Bilinear) : a bilinear transformation with sparse inputs ;
     * [PartialLinear](#nn.PartialLinear) : a linear transformation with sparse inputs with the option of only computing a subset ;
     * [Add](#nn.Add) : adds a bias term to the incoming data ;
+    * [CAdd](#nn.CAdd) : a component-wise addition to the incoming data ;
     * [Mul](#nn.Mul) : multiply a single scalar factor to the incoming data ;
     * [CMul](#nn.CMul) : a component-wise multiplication to the incoming data ;
     * [Euclidean](#nn.Euclidean) : the euclidean distance of the input to `k` mean centers ;
@@ -44,6 +45,7 @@ Simple Modules are used for various tasks like adapting Tensor methods and provi
     * [MM](#nn.MM) : matrix-matrix multiplication (also supports batches of matrices) ;
   * Miscellaneous Modules :
     * [BatchNormalization](#nn.BatchNormalization) : mean/std normalization over the mini-batch inputs (with an optional affine transform) ;
+    * [PixelShuffle](#nn.PixelShuffle) : Rearranges elements in a tensor of shape `[C*r, H, W]` to a tensor of shape `[C, H*r, W*r]` ;
     * [Identity](#nn.Identity) : forward input as-is to output (useful with [ParallelTable](table.md#nn.ParallelTable)) ;
     * [Dropout](#nn.Dropout) : masks parts of the `input` using binary samples from a [bernoulli](http://en.wikipedia.org/wiki/Bernoulli_distribution) distribution ;
     * [SpatialDropout](#nn.SpatialDropout) : same as Dropout but for spatial inputs where adjacent pixels are strongly correlated ;
@@ -295,6 +297,7 @@ As described in the paper "Efficient Object Localization Using Convolutional Net
 
 ```nn.VolumetricDropout``` accepts 4D or 5D inputs.  If the input is 4D than a layout of (features x time x height x width) is assumed and for 5D (batch x features x time x height x width) is assumed.
 
+
 <a name="nn.Abs"></a>
 ## Abs ##
 
@@ -364,6 +367,57 @@ gives the output:
 
 i.e. the network successfully learns the input `x` has been shifted to produce the output `y`.
 
+<a name='nn.CAdd'></a>
+## CAdd ##
+
+```lua
+module = nn.CAdd(size)
+```
+
+Applies a component-wise addition to the incoming data, i.e. `y_i = x_i + b_i`. Argument `size` can be one or many numbers (sizes) or a `torch.LongStorage`. For example, `nn.CAdd(3,4,5)` is equivalent to `nn.CAdd(torch.LongStorage{3,4,5})`. If the size for a particular dimension is 1, the addition will be expanded along the entire axis.
+
+Example:
+
+```lua
+mlp = nn.Sequential()
+mlp:add(nn.CAdd(5, 1))
+
+y = torch.Tensor(5, 4)
+bf = torch.Tensor(5, 4)
+for i = 1, 5 do bf[i] = i; end -- scale input with this
+
+function gradUpdate(mlp, x, y, criterion, learningRate)
+   local pred = mlp:forward(x)
+   local err = criterion:forward(pred, y)
+   local gradCriterion = criterion:backward(pred, y)
+   mlp:zeroGradParameters()
+   mlp:backward(x, gradCriterion)
+   mlp:updateParameters(learningRate)
+   return err
+end
+
+for i = 1, 10000 do
+   x = torch.rand(5, 4)
+   y:copy(x)
+   y:add(bf)
+   err = gradUpdate(mlp, x, y, nn.MSECriterion(), 0.01)
+end
+
+print(mlp:get(1).bias)
+```
+
+gives the output:
+
+```lua
+ 1.0000
+ 2.0000
+ 3.0000
+ 4.0000
+ 5.0000
+[torch.Tensor of dimension 5x1]
+```
+
+i.e. the network successfully learns the input `x` has been shifted by those bias factors to produce the output `y`.
 
 <a name="nn.Mul"></a>
 ## Mul ##
@@ -1332,6 +1386,37 @@ model = nn.BatchNormalization(m, nil, nil, false)
 A = torch.randn(b, m)
 C = model:forward(A)  -- C will be of size `b x m`
 ```
+
+
+<a name="nn.PixelShuffle"></a>
+## PixelShuffle ##
+```module = nn.PixelShuffle(r)```
+
+Rearranges elements in a tensor of shape `[C*r, H, W]` to a tensor of shape `[C, H*r, W*r]`. This is useful for implementing efficient sub-pixel convolution with a stride of `1/r` (see [Shi et. al](https://arxiv.org/abs/1609.05158)). Below we show how the `PixelShuffle` module can be used to learn upscaling filters to transform a low-resolution input to a high resolution one, with a 3x upscale factor. This is useful for tasks such as super-resolution, see ["Real-Time Single Image and Video Super-Resolution Using an Efficient Sub-Pixel Convolutional Neural Network" - Shi et al.](https://arxiv.org/abs/1609.05158) for further details.
+
+```
+upscaleFactor = 3
+inputChannels = 1
+
+model = nn.Sequential()
+model:add(nn.SpatialConvolution(inputChannels, 64, 5, 5, 1, 1, 2, 2))
+model:add(nn.ReLU())
+
+model:add(nn.SpatialConvolution(64, 32, 3, 3, 1, 1, 1, 1))
+model:add(nn.ReLU())
+
+model:add(nn.SpatialConvolution(32, inputChannels * upscaleFactor * upscaleFactor, 3, 3, 1, 1, 1, 1))
+model:add(nn.PixelShuffle(upscaleFactor))
+
+input = torch.Tensor(1, 192, 256);
+out = model:forward(input)
+out:size()
+   1
+ 576
+ 768
+[torch.LongStorage of size 3]
+```
+
 
 <a name="nn.Padding"></a>
 ## Padding ##
