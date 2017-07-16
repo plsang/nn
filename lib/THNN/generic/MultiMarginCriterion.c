@@ -6,14 +6,16 @@
 void THNN_(MultiMarginCriterion_updateOutput)(
           THNNState *state,
           THTensor *input,
-          THTensor *target,
+          THIndexTensor *target,
           THTensor *output,
           bool sizeAverage,
           int p,
           THTensor *weights,
-          real margin)
+          accreal margin_)
 {
-  real *input_data, *target_data, *weights_data;
+  real margin = TH_CONVERT_ACCREAL_TO_REAL(margin_);
+  real *input_data, *weights_data;
+  THIndex_t *target_data;
   long nframe, dim;
   long t, d;
   real sum;
@@ -36,22 +38,22 @@ void THNN_(MultiMarginCriterion_updateOutput)(
 
   for (t = 0; t < nframe; t++)
   {
-    real idx = THTensor_(get1d)(target, t);
+    THIndex_t idx = THIndexTensor_(get1d)(target, t);
     THArgCheck((idx >= TH_INDEX_BASE) && (idx < dim + TH_INDEX_BASE), 3,
 	       "target out of range");
   }
 
   input = THTensor_(newContiguous)(input);
-  target = THTensor_(newContiguous)(target);
+  target = THIndexTensor_(newContiguous)(target);
   weights = weights ? THTensor_(newContiguous)(weights) : NULL;
   input_data = THTensor_(data)(input);
-  target_data = THTensor_(data)(target);
+  target_data = THIndexTensor_(data)(target);
   weights_data = weights ? THTensor_(data)(weights) : NULL;
 
   sum = 0;
   for (t = 0; t < nframe; t++)
   {
-    long target_idx = (long)(target_data[t] - TH_INDEX_BASE);
+    THIndex_t target_idx = target_data[t] - TH_INDEX_BASE;
     real input_target = input_data[target_idx];
     for (d = 0; d < dim; d++)
     {
@@ -76,7 +78,7 @@ void THNN_(MultiMarginCriterion_updateOutput)(
   THTensor_(set1d)(output, 0, sum);
 
   THTensor_(free)(input);
-  THTensor_(free)(target);
+  THIndexTensor_(free)(target);
   if(weights)
     THTensor_(free)(weights);
 }
@@ -84,16 +86,17 @@ void THNN_(MultiMarginCriterion_updateOutput)(
 void THNN_(MultiMarginCriterion_updateGradInput)(
           THNNState *state,
           THTensor *input,
-          THTensor *target,
+          THIndexTensor *target,
           THTensor *gradInput,
           bool sizeAverage,
           int p,
           THTensor *weights,
-          real margin)
+          accreal margin_)
 {
+  real margin = TH_CONVERT_ACCREAL_TO_REAL(margin_);
   real *input_data;
   real *gradInput_data;
-  real *target_data;
+  THIndex_t *target_data;
   real *weights_data;
   long nframe, dim;
   long t, d;
@@ -118,19 +121,19 @@ void THNN_(MultiMarginCriterion_updateGradInput)(
   g = (sizeAverage ? 1./((real)(nframe*dim)) : 1./((real)dim));
 
   input = THTensor_(newContiguous)(input);
-  target = THTensor_(newContiguous)(target);
+  target = THIndexTensor_(newContiguous)(target);
   input_data = THTensor_(data)(input);
 
   THTensor_(resizeAs)(gradInput, input);
   gradInput_data = THTensor_(data)(gradInput);
 
-  target_data = THTensor_(data)(target);
+  target_data = THIndexTensor_(data)(target);
   weights = weights ? THTensor_(newContiguous)(weights) : NULL;
   weights_data = weights ? THTensor_(data)(weights) : NULL;
 
   for (t = 0; t < nframe; t++)
   {
-    long target_idx = (long)(target_data[t]) - TH_INDEX_BASE;
+    THIndex_t target_idx = target_data[t] - TH_INDEX_BASE;
     real input_target = input_data[target_idx];
     real gradInput_target = 0;
     for (d = 0; d < dim; d++)
@@ -157,7 +160,7 @@ void THNN_(MultiMarginCriterion_updateGradInput)(
   }
 
   THTensor_(free)(input);
-  THTensor_(free)(target);
+  THIndexTensor_(free)(target);
   if(weights)
     THTensor_(free)(weights);
 }

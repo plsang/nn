@@ -102,12 +102,6 @@ function LookupTable:accGradParameters(input, gradOutput, scale)
       error("input must be a vector or matrix")
    end
 
-   if not gradOutput:isContiguous() then
-      self._gradOutput = self._gradOutput or gradOutput.new()
-      self._gradOutput:resizeAs(gradOutput):copy(gradOutput)
-      gradOutput = self._gradOutput
-   end
-
    self.gradWeight.THNN.LookupTable_accGradParameters(
       input:cdata(),
       gradOutput:cdata(),
@@ -146,7 +140,7 @@ end
 function LookupTable:type(type, tensorCache)
    parent.type(self, type, tensorCache)
 
-   if type == 'torch.CudaTensor' then
+   if type and type:find('torch%.Cuda.*Tensor') then
       -- CUDA uses _sorted and _indices temporary tensors
       self._sorted = torch.CudaLongTensor and torch.CudaLongTensor.new() or torch.CudaTensor.new()
       self._indices = torch.CudaLongTensor and torch.CudaLongTensor.new() or torch.CudaTensor.new()
@@ -162,9 +156,11 @@ function LookupTable:type(type, tensorCache)
 end
 
 function LookupTable:clearState()
-   nn.utils.clear(self, '_count', '_input', '_gradOutput')
+   nn.utils.clear(self, '_count', '_input')
    return parent.clearState(self)
 end
 
--- we do not need to accumulate parameters when sharing
-LookupTable.sharedAccUpdateGradParameters = LookupTable.accUpdateGradParameters
+function LookupTable:sharedAccUpdateGradParameters(input, gradOutput, lr)
+   -- we do not need to accumulate parameters when sharing:
+   self:defaultAccUpdateGradParameters(input, gradOutput, lr)
+end

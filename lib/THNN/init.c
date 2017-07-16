@@ -13,10 +13,23 @@
 	       #I1 " %s, " #I2 " %s", s1.str, s2.str);	\
     }
 
+#define THNN_CHECK_SHAPE_INDICES(I1, I2)             \
+  THLongStorage *size2 = THLongTensor_newSizeOf(I2); \
+  if (I1 != NULL && I2 != NULL && !THTensor_(isSize)(I1, size2)) \
+    {             \
+      THDescBuff s1 = THTensor_(sizeDesc)(I1);       \
+      THDescBuff s2 = THLongTensor_sizeDesc(I2);     \
+      THLongStorage_free(size2);                     \
+      THError(#I1 " and " #I2 " shapes do not match: " \
+        #I1 " %s, " #I2 " %s", s1.str, s2.str);      \
+    } else {      \
+      THLongStorage_free(size2);                     \
+    }
+
 #define THNN_CHECK_NELEMENT(I1, I2) \
   if (I1 != NULL && I2 != NULL ) {					\
-    long n1 = THTensor_(nElement)(I1);					\
-    long n2 = THTensor_(nElement)(I2);	                                \
+    ptrdiff_t n1 = THTensor_(nElement)(I1);					\
+    ptrdiff_t n2 = THTensor_(nElement)(I2);	                                \
     if (n1 != n2)							\
       {									\
 	THDescBuff s1 = THTensor_(sizeDesc)(I1);			\
@@ -33,6 +46,14 @@
       THDescBuff s1 = THTensor_(sizeDesc)(T);				\
       THError("Need " #T " of dimension %d and " #T ".size[%d] == %d"	\
 	      " but got " #T " to be of shape: %s", DIM, DIM_SIZE, SIZE, s1.str); \
+  }
+
+#define THNN_CHECK_DIM_SIZE_INDICES(T, DIM, DIM_SIZE, SIZE)			\
+  if (THIndexTensor_(nDimension)(T) != DIM ||				\
+      THIndexTensor_(size)(T, DIM_SIZE) != SIZE) {				\
+      THDescBuff s1 = THIndexTensor_(sizeDesc)(T);				\
+      THError("Need " #T " of dimension %d and " #T ".size[%d] == %d"	\
+        " but got " #T " to be of shape: %s", DIM, DIM_SIZE, SIZE, s1.str); \
   }
 
 #define THNN_ARGCHECK(COND, ARG, T, FORMAT)	\
@@ -68,10 +89,16 @@
 #include "generic/HardTanh.c"
 #include "THGenerateFloatTypes.h"
 
+#include "generic/GatedLinearUnit.c"
+#include "THGenerateFloatTypes.h"
+
 #include "generic/L1Cost.c"
 #include "THGenerateFloatTypes.h"
 
 #include "generic/LeakyReLU.c"
+#include "THGenerateFloatTypes.h"
+
+#include "generic/FusedRNNKernel.c"
 #include "THGenerateFloatTypes.h"
 
 #include "generic/LogSigmoid.c"
@@ -98,6 +125,9 @@
 #include "generic/MultiMarginCriterion.c"
 #include "THGenerateFloatTypes.h"
 
+#include "generic/Linear.c"
+#include "THGenerateFloatTypes.h"
+
 #include "generic/PReLU.c"
 #include "THGenerateFloatTypes.h"
 
@@ -122,6 +152,9 @@
 #include "generic/SparseLinear.c"
 #include "THGenerateFloatTypes.h"
 
+#include "generic/IndexLinear.c"
+#include "THGenerateFloatTypes.h"
+
 #include "generic/Sqrt.c"
 #include "THGenerateFloatTypes.h"
 
@@ -143,6 +176,9 @@
 #include "generic/TemporalMaxPooling.c"
 #include "THGenerateFloatTypes.h"
 
+#include "generic/TemporalRowConvolution.c"
+#include "THGenerateFloatTypes.h"
+
 #include "generic/BatchNormalization.c"
 #include "THGenerateFloatTypes.h"
 
@@ -153,6 +189,9 @@
 #include "THGenerateFloatTypes.h"
 
 #include "generic/SpatialConvolutionMM.c"
+#include "THGenerateFloatTypes.h"
+
+#include "generic/SpatialDepthWiseConvolution.c"
 #include "THGenerateFloatTypes.h"
 
 #include "generic/SpatialConvolutionLocal.c"
@@ -168,6 +207,9 @@
 #include "THGenerateFloatTypes.h"
 
 #include "generic/SpatialAdaptiveMaxPooling.c"
+#include "THGenerateFloatTypes.h"
+
+#include "generic/SpatialAdaptiveAveragePooling.c"
 #include "THGenerateFloatTypes.h"
 
 #include "generic/SpatialAveragePooling.c"
@@ -194,6 +236,9 @@
 #include "generic/SpatialUpSamplingBilinear.c"
 #include "THGenerateFloatTypes.h"
 
+#include "generic/SpatialGridSamplerBilinear.c"
+#include "THGenerateFloatTypes.h"
+
 #include "generic/VolumetricAveragePooling.c"
 #include "THGenerateFloatTypes.h"
 
@@ -213,6 +258,9 @@
 #include "THGenerateFloatTypes.h"
 
 #include "generic/VolumetricDilatedMaxPooling.c"
+#include "THGenerateFloatTypes.h"
+
+#include "generic/VolumetricFractionalMaxPooling.c"
 #include "THGenerateFloatTypes.h"
 
 #include "generic/VolumetricMaxUnpooling.c"
@@ -235,3 +283,10 @@
 
 #include "generic/VolumetricReplicationPadding.c"
 #include "THGenerateFloatTypes.h"
+
+#include "generic/VolumetricUpSamplingNearest.c"
+#include "THGenerateFloatTypes.h"
+
+#include "generic/VolumetricUpSamplingTrilinear.c"
+#include "THGenerateFloatTypes.h"
+
